@@ -1,3 +1,6 @@
+from tkinter import *
+from tkinter import messagebox
+
 class User:
     """Save user id"""
     def __init__(self, id):
@@ -18,131 +21,177 @@ class Cell:
 
 class Cordinate:
     """ Hold cordinate info"""
-    def __init__(self, x, y):
-        self._x = x
-        self._y = y
+    def __init__(self, row_index, col_index):
+        self._row_index = row_index
+        self._col_index = col_index
 
-    def get_x(self):
+    def get_row_index(self):
         """ Get x cordinate."""
-        return self._x
+        return self._row_index
 
-    def get_y(self):
+    def get_column_index(self):
         """ Get y cordinate."""
-        return self._y
+        return self._col_index
 
 class Board:
     """docstring for Board"""
-    def __init__(self, l, w):
-        self.l = l
-        self.w = w
+    def __init__(self, row_length, col_length, handle_button_click):
+        self.row_length = row_length
+        self.col_length = col_length
         self.marked_cells = {}
-        self.total_cell = l * w
+        self.total_cell = row_length * col_length
+        self.handle_button_click = handle_button_click
+        # root = Tk()
+        # app_view = Baord(root, l, w)
+        # app_view.pack(side='top', fill='both', expand=True)
+        self._widget = {}
+        # self._view = self._create_view(root, l, w)
+        # root.mainloop()
 
-    def mark_cell(self, user, cordinate):
+
+    def create_view(self, root, row_length, col_length):
+        """ Create board view."""
+        Grid.rowconfigure(root, 0, weight=1)
+        Grid.columnconfigure(root, 0, weight=1)
+
+        #Create & Configure frame
+        frame = Frame(root)
+        frame.grid(row=0, column=0, sticky=N+S+E+W)
+
+        root.geometry('400x400+300+100')
+        root.title('My app')
+
+        #Create a 5x10 (rows x columns) grid of buttons inside the frame
+        for row_index in range(row_length):
+            Grid.rowconfigure(frame, row_index, weight=1)
+            for col_index in range(col_length):
+                Grid.columnconfigure(frame, col_index, weight=1)
+                btn = Button(frame,
+                             borderwidth=1,
+                             command=lambda cordinate=Cordinate(row_index, col_index):
+                             self.handle_button_click(cordinate), bg='White', fg='Black')
+                btn.grid(row=row_index, column=col_index, sticky=N+S+E+W)
+                self._widget[(row_index, col_index)] = btn
+
+    def show_marked_user(self, user, cordinate):
+        """  On button click, display user id on borad."""
+        self._widget[(cordinate.get_row_index(), cordinate.get_column_index())].\
+        configure(text='%s'%(user.get_id()), state="disabled")
+
+    def add_into_marked_cell(self, user, cordinate):
         """ Mark cell for each turn."""
-        self.marked_cells[(cordinate.get_x(), cordinate.get_y())] = Cell(user)
+        self.marked_cells[(cordinate.get_row_index(), cordinate.get_column_index())] = Cell(user)
 
     def is_cell_marked_by_user(self, user, cordinate):
         """Check weather give user marked the cell or not."""
-        if self.is_cell_marked(cordinate) and \
-        self.get_marked_user(cordinate) == user.get_id():
-            return 1
-        else:
-            return 0
+        return 1 if self.is_cell_marked(cordinate) and \
+        self.get_marked_user(cordinate) == user.get_id() else 0
+
     def is_cell_marked(self, cordinate):
         """ Return weather a cell is marked or not."""
-        return (cordinate.get_x(), cordinate.get_y()) in self.marked_cells
+        return (cordinate.get_row_index(), cordinate.get_column_index()) in self.marked_cells
 
     def get_marked_user(self, cordinate):
         """ Return user who marked the cell."""
-        return self.marked_cells[(cordinate.get_x(), cordinate.get_y())].get_marked_user()
+        return self.marked_cells[(cordinate.get_row_index(),
+                                  cordinate.get_column_index())].get_marked_user()
 
 
 class Game():
     """ Game class."""
-    def __init__(self):
-        self._board = Board(3, 3)
-        self._counter = 0
+    def __init__(self, row_count, column_count, root):
+        self._root = root
+        self._board = Board(row_count, column_count, self.handle_button_click)
+        self._user = User(0)
+        self._view = self._board.create_view(self._root, row_count, column_count)
+        self._root.mainloop()
 
-    def _get_cordinate(self):
-        """ Get cordinate from user."""
-        x, y = map(int, input("Enter space separated cordinate: ").strip().split())
-        return Cordinate(x, y)
+    def _get_current_user(self):
+        return self._user
 
     def _is_valid_cordinate(self, cordinate):
         """ Check for validity of input cordinate."""
-        return -1 < cordinate.get_x() < self._board.l and -1 < cordinate.get_y() < self._board.w \
-        and (cordinate.get_x(), cordinate.get_y()) not in self._board.marked_cells
+        return -1 < cordinate.get_row_index() < self._board.row_length and -1 < \
+        cordinate.get_column_index() < self._board.col_length and \
+        (cordinate.get_row_index(), cordinate.get_column_index()) not in self._board.marked_cells
 
-    def _is_horizenatally_completed(self, user, cordinate):
+    def _update_current_user(self):
+        self._user = User((self._user.get_id() + 1) % 2)
+
+    def _is_horizenatally_completed(self, cordinate):
         """ Check weather user marked all horizenatal cell of current cordinate."""
-        return sum([self._board.is_cell_marked_by_user(user, Cordinate(cordinate.get_x(), y)) \
-        for y in range(self._board.w)]) == self._board.w
+        user = self._get_current_user()
+        return sum([self._board.is_cell_marked_by_user(
+            user, Cordinate(cordinate.get_row_index(), index)) \
+        for index in range(self._board.col_length)]) == self._board.col_length
 
-    def _is_verically_completed(self, user, cordinate):
+    def _is_verically_completed(self, cordinate):
         """ Check weather user marked all verical cell of current cordinate."""
-        return sum([self._board.is_cell_marked_by_user(user, Cordinate(x, cordinate.get_y())) \
-        for x in range(self._board.l)]) == self._board.l
+        user = self._get_current_user()
+        return sum([self._board.is_cell_marked_by_user(
+            user, Cordinate(index, cordinate.get_column_index())) \
+        for index in range(self._board.row_length)]) == self._board.row_length
 
-    def _is_diagonally_completed(self, user, cordinate):
+    def _is_diagonally_completed(self, cordinate):
         """ Check weather user marked all diagonal cell of current cordinate."""
         # Check only when x is equeal to y.
         # Check top down diagonal.
         # Check bootom up diagonal.
-        board_length = self._board.l
-        return cordinate.get_x() == cordinate.get_y() and \
-        (sum([self._board.is_cell_marked_by_user(user, Cordinate(x, board_length - 1 - x)) \
-        for x in range(board_length)]) == board_length or \
-        sum([self._board.is_cell_marked_by_user(user, Cordinate(x, x)) \
-        for x in range(board_length)]) == board_length
+        user = self._get_current_user()
+        board_length = self._board.row_length
+        row_index, column_index = cordinate.get_row_index(), cordinate.get_column_index()
+        return (row_index == column_index or row_index == board_length - 1 - column_index) and \
+        (sum([self._board.is_cell_marked_by_user(user, Cordinate(index, board_length - 1 - index)) \
+        for index in range(board_length)]) == board_length or \
+        sum([self._board.is_cell_marked_by_user(user, Cordinate(index, index)) \
+        for index in range(board_length)]) == board_length
         )
 
-    def _is_game_completed(self, user, cordinate):
+    def _is_user_won(self, cordinate):
         """ Check weather game is finished or not"""
-        return self._is_horizenatally_completed(user, cordinate) \
-        or self._is_verically_completed(user, cordinate) \
-        or self._is_diagonally_completed(user, cordinate)
+        return self._is_horizenatally_completed(cordinate) \
+        or self._is_verically_completed(cordinate) \
+        or self._is_diagonally_completed(cordinate)
 
-    def _print_board(self):
-        # "\n".join(["".join([self._board.get_marked_user() if self._board.is_cell_marked(Cordinate(x, y)) else " " for y in range(self._board.w)])) for x in range(self._board.l) ])
-        print("\n".join(["| ".join([str(self._board.get_marked_user(Cordinate(x, y))) if \
-        self._board.is_cell_marked(Cordinate(x, y)) else " " for y in range(self._board.w)]) \
-         for x in range(self._board.l)]))
+    def handle_button_click(self, cordinate):
+        """ Handle borad button click."""
+        if self._is_valid_cordinate(cordinate):
+            user = self._get_current_user()
+            self._board.show_marked_user(user, cordinate)
+            self._board.add_into_marked_cell(user, cordinate)
+            if self._is_user_won(cordinate):
+                messagebox.showinfo("Game completed", 'User won: %s !!!'%(user.get_id()))
+                self._root.quit()
+            elif len(self._board.marked_cells) == self._board.total_cell:
+                messagebox.showinfo("Game tied", 'Tied.')
+                self._root.quit()
+            else:
+                self._update_current_user()
 
+def confirm_quit():
+    global is_quitting, already_asked
+    is_quitting = messagebox.askquestion('tic tac toe', 'Do you want to quit?') == 'yes'
+    already_asked = True
+    master.quit()
+        # is_quitting = True
+        # master.destroy()
+        # sys.exit()
 
-        # "\n".join([userid if cellmaked else "" ] for y in range(self._board.w))
-        # for x in range(self._board.l):
-        #     for y in range(self._board.w):
-        #         is_cell_marked_by_user
+is_quitting = False
+if __name__ == '__main__':
+    while True:
+        already_asked = False
+        n = 3
+        master = Tk()
+        master.protocol("WM_DELETE_WINDOW", confirm_quit)
+        Game(n, n, master)
+        if not already_asked:
+            confirm_quit()
+        master.destroy()
+        if is_quitting:
+            break
 
-    def start_game(self):
-        """ Starting game."""
-        while True:
-            self._print_board()
-            while True:
-                try:
-                    cordinate = self._get_cordinate()
-                    if self._is_valid_cordinate(cordinate):
-                        break
-                    else:
-                        print("Invalid/Already used cordinate. Try again.")
-                except Exception:
-                    print("Cordinate not in expected format. Try again.")
-
-            user = User(self._counter % 2)
-            self._board.mark_cell(user, cordinate)
-            _is_user_won = self._is_game_completed(user, cordinate)
-            if self._counter >= self._board.total_cell or _is_user_won:
-                break
-            self._counter += 1
-
-        if _is_user_won:
-            print("%s won the game!!! :)"%(user.get_id()))
-        else:
-            print("It's a tie.")
-
-
-
-
-game = Game()
-game.start_game()
+        # if messagebox.askquestion('tic tac toe', 'Do you want to play again?') == 'no':
+        #     master.destroy()
+        #     break
+        # master.destroy()
